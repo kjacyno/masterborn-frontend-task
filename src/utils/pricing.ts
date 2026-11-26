@@ -9,7 +9,7 @@ import type {
 
 // Discount tiers
 const QUANTITY_DISCOUNT_TIERS = [
-  { minQuantity: 50, discount: 0.1 }, // 10% off for 50+
+  { minQuantity: 50, discount: 0.15 }, // 15% off for 50+ according to marketing page and public docs
   { minQuantity: 10, discount: 0.05 }, // 5% off for 10-49
 ];
 
@@ -92,7 +92,7 @@ export function formatPrice(amount: number, currency: string = 'USD'): string {
  */
 export function getAppliedDiscountPercentage(quantity: number): number {
   for (const tier of QUANTITY_DISCOUNT_TIERS) {
-    if (quantity > tier.minQuantity) {
+    if (quantity >= tier.minQuantity) {
       return tier.discount * 100;
     }
   }
