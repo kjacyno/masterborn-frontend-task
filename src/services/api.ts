@@ -40,7 +40,7 @@ export async function calculatePrice(
   return {
     breakdown,
     formattedTotal: formatCurrency(breakdown.total, product.currency),
-    timestamp: requestId,
+    requestId: requestId,
   };
 }
 

@@ -15,14 +15,14 @@ interface UsePriceCalculationResult {
   formattedTotal: string;
   isLoading: boolean;
   error: string | null;
-  refetch: () => void;
+  refetch?: () => void;
 }
 
 /**
  * Custom hook for managing price calculation
  */
 export function usePriceCalculation(
-  config: Configuration | null,
+  config: Configuration,
   product: Product,
 ): UsePriceCalculationResult {
   const [price, setPrice] = useState<PriceBreakdown | null>(null);
@@ -33,43 +33,42 @@ export function usePriceCalculation(
   // Track latest request timestamp to prevent stale responses from overwriting newer ones.
   // Guards against race conditions when the user changes options in rapid succession.
   const latestRequestRef = useRef<number>(0);
-
+  if (!config) {
+    setPrice(null);
+    setFormattedTotal('$0.00');
+    setIsLoading(false);
+    setError(null);
+  }
   const fetchPrice = useCallback(async () => {
-    if (!config) {
-      setPrice(null);
-      setFormattedTotal('$0.00');
-      return;
-    }
+    const requestId = ++latestRequestRef.current;
 
     setIsLoading(true);
     setError(null);
 
-    const requestTime = Date.now();
-    latestRequestRef.current = requestTime;
-
     try {
       const response: PriceResponse = await calculatePrice(config, product);
 
-      if (response.timestamp >= latestRequestRef.current) {
+      if (requestId === latestRequestRef.current) {
         setPrice(response.breakdown);
         setFormattedTotal(response.formattedTotal);
       }
     } catch {
-      // Only set error if this is still the latest request
-      if (requestTime === latestRequestRef.current) {
+      if (requestId === latestRequestRef.current) {
         setError('ERR_PRICE_CALC_FAILED');
         setPrice(null);
       }
     } finally {
-      setIsLoading(false);
+      if (requestId === latestRequestRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [config, product]);
 
-  // Fetch price when config changes
+  // Fetch price when config or product changes; fetchPrice handles async results.
   useEffect(() => {
-    fetchPrice();
-  }, [config?.selections, config?.addOns, config?.quantity]);
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchPrice();
+  }, [fetchPrice]);
   return {
     price,
     formattedTotal,
@@ -81,7 +80,7 @@ export function usePriceCalculation(
 
 /**
  * Debounced version of price calculation
- */
+
 export function useDebouncedPriceCalculation(
   config: Configuration | null,
   product: Product,
@@ -103,9 +102,6 @@ export function useDebouncedPriceCalculation(
     }
 
     if (!config) {
-      setPrice(null);
-      setFormattedTotal('$0.00');
-      setIsLoading(false);
       return;
     }
 
@@ -159,3 +155,4 @@ export function useDebouncedPriceCalculation(
     refetch,
   };
 }
+ */

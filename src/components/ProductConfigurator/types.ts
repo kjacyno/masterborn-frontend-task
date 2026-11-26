@@ -98,7 +98,7 @@ export interface Draft {
 export interface PriceResponse {
   breakdown: PriceBreakdown;
   formattedTotal: string;
-  timestamp: number;
+  requestId: number;
 }
 
 export interface PreviewResponse {
@@ -111,7 +111,7 @@ export interface ProductConfiguratorProps {
   product: Product;
   initialConfiguration?: Partial<Configuration>;
   onConfigurationChange: (config: Configuration) => void;
-  onAddToCart?: (config: Configuration, price: PriceBreakdown) => void;
+  onAddToCart: (config: Configuration, price: PriceBreakdown) => void;
   readOnly?: boolean;
 }
 

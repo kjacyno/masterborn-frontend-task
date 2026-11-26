@@ -52,7 +52,7 @@ import './styles.css';
 // ============================================================================
 
 const generateConfigId = (): string => {
-  return `config_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `config_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 };
 
 const getDefaultSelections = (product: Product): Record<string, string | number | boolean> => {
@@ -131,8 +131,8 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
   const [showShareModal, setShowShareModal] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>([]);
 
-  const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [isValid, setIsValid] = useState(false);
+  const [validation, setValidation] = useState<ValidationResult | undefined>(undefined);
+  const [isValid, setIsValid] = useState(true);
 
   const [previewUrl, setPreviewUrl] = useState<string>(product.imageUrl);
 
@@ -185,7 +185,21 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
   // -------------------------------------------------------------------------
   // Effects
   // -------------------------------------------------------------------------
-
+  const handleValidation = async (
+    currentConfig: Configuration,
+    product: Product,
+  ): Promise<ValidationResult | void> => {
+    setIsValid(false);
+    try {
+      const response = await validateConfiguration(currentConfig, product);
+      if (response.valid) {
+        setIsValid(true);
+      }
+      return response;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : ERROR_CODES.UNKNOWN);
+    }
+  };
   useEffect(() => {
     const handleResize = () => {
       if (colorPickerRef.current) {
@@ -223,8 +237,6 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
 
   useEffect(() => {
     onConfigurationChange(currentConfig);
-
-    console.log('onConfigurationChange useeffect');
   }, [selections, selectedAddOns, quantity, onConfigurationChange, currentConfig]);
 
   useEffect(() => {
@@ -258,30 +270,18 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
   // -------------------------------------------------------------------------
   // Event Handlers
   // -------------------------------------------------------------------------
-  const handleValidation = async (
-    currentConfig: Configuration,
-    product: Product,
-  ): Promise<ValidationResult | void> => {
-    try {
-      return await validateConfiguration(currentConfig, product);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : ERROR_CODES.UNKNOWN);
-    }
-  };
+
   const handleOptionChange = useCallback(
     (optionId: string, value: string | number | boolean) => {
       setSelections((prev) => ({
         ...prev,
         [optionId]: value,
       }));
-      console.log(optionId, value);
       const option = product.options.find((o) => o.id === optionId);
       // Clean up any dependent add-ons whose requirement is no longer met.
       // Toggles are handled in handleAddOnToggle, so we only need to do this for select options.
-      console.log('option', option);
       if (option) {
         const dependentAddOns = product.addOns.filter((a) => a.dependsOn?.optionId === optionId);
-        console.log('dependentAddOns', dependentAddOns);
         for (const addOn of dependentAddOns) {
           if (addOn.dependsOn && value !== addOn.dependsOn.requiredValue) {
             const index = selectedAddOns.indexOf(addOn.id);
@@ -325,7 +325,6 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
 
     const clampedQuantity = Math.max(min, Math.min(max, newQuantity));
     setQuantity(clampedQuantity);
-    console.log('clampedQuantity', clampedQuantity);
     if (clampedQuantity > 1) {
       setIsDirty(true);
     } else setIsDirty(false);
@@ -378,7 +377,7 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
       const result = await handleValidation(currentConfig, product);
       if (!result) return;
       setValidation(result);
-      if (result.valid && price && onAddToCart) {
+      if (result.valid && price) {
         onAddToCart(currentConfig, price);
       } else if (result.errors?.length || result.warnings?.length) {
         setError(result.errors?.[0]?.message || ERROR_CODES.UNKNOWN);
@@ -391,10 +390,9 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
   };
 
   const handleQuickAdd = () => {
+    void handleValidation(currentConfig, product);
     handleDiscardChanges();
-    if (price && onAddToCart) {
-      onAddToCart(currentConfig, price);
-    }
+    if (price) onAddToCart(currentConfig, price);
   };
 
   const handleCopyShareUrl = () => {
@@ -880,7 +878,10 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
               <button
                 className="quick-add-btn"
                 onClick={handleQuickAdd}
-                disabled={readOnly || !validation?.valid}
+                disabled={
+                  readOnly ||
+                  (validation && (validation.errors.length > 0 || validation.warnings.length > 0))
+                }
               >
                 ⚡ Quick Add to Cart
               </button>
@@ -890,7 +891,11 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
           <button
             className="btn btn-success btn-block"
             onClick={handleAddToCart}
-            disabled={readOnly || !validation?.valid || isPriceLoading}
+            disabled={
+              readOnly ||
+              (validation && (validation.errors.length > 0 || validation.warnings.length > 0)) ||
+              isPriceLoading
+            }
           >
             {isPriceLoading ? 'Calculating...' : 'Add to Cart'}
           </button>
