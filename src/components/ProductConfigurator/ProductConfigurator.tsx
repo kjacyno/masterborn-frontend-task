@@ -24,9 +24,9 @@ import type {
   ProductOption,
   AddOn,
   Configuration,
-  PriceBreakdown,
   Draft,
   ValidationResult,
+  ProductConfiguratorProps,
 } from './types';
 import { ERROR_CODES } from './types';
 import { usePriceCalculation } from '../../hooks/usePriceCalculation';
@@ -37,7 +37,7 @@ import {
   getAllDrafts,
   deleteDraft,
   encodeConfigurationToUrl,
-  decodeConfigurationFromUrl,
+  // decodeConfigurationFromUrl, //check TODO
   generatePreview,
 } from '../../services/api';
 import {
@@ -46,14 +46,6 @@ import {
   getNextDiscountTier,
 } from '../../utils/pricing';
 import './styles.css';
-
-interface ProductConfiguratorProps {
-  product: Product;
-  initialConfiguration?: Partial<Configuration>;
-  onConfigurationChange?: (config: Configuration) => void;
-  onAddToCart?: (config: Configuration, price: PriceBreakdown) => void;
-  readOnly?: boolean;
-}
 
 // ============================================================================
 // Helper Functions
@@ -205,27 +197,8 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
 
     window.addEventListener('resize', handleResize);
     handleResize();
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const validate = async () => {
-      try {
-        const result = await validateConfiguration(currentConfig, product);
-        if (!cancelled) {
-          setValidation(result);
-          setIsValid(true);
-        }
-      } catch {}
-    };
-
-    validate();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentConfig, product]);
 
   useEffect(() => {
     let cancelled = false;
@@ -249,57 +222,66 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
   }, [currentConfig, product]);
 
   useEffect(() => {
-    if (onConfigurationChange) {
-      onConfigurationChange(currentConfig);
-    }
-    setIsDirty(true);
-  }, [selections, selectedAddOns, quantity]);
+    onConfigurationChange(currentConfig);
+
+    console.log('onConfigurationChange useeffect');
+  }, [selections, selectedAddOns, quantity, onConfigurationChange, currentConfig]);
 
   useEffect(() => {
     if (showDraftModal) {
       getAllDrafts().then(setDrafts);
     }
   }, [showDraftModal]);
+  //TODO: url necoding and decoding, fix link sharing (CFG-147)
+  // useEffect(() => {
+  //   if (showShareModal) {
+  //     const encoded = encodeConfigurationToUrl(currentConfig);
+  //     const url = `${window.location.origin}${window.location.pathname}?config=${encoded}`;
+  //     setShareUrl(url);
+  //   }
+  // }, [showShareModal, currentConfig]);
 
-  useEffect(() => {
-    if (showShareModal) {
-      const encoded = encodeConfigurationToUrl(currentConfig);
-      const url = `${window.location.origin}${window.location.pathname}?config=${encoded}`;
-      setShareUrl(url);
-    }
-  }, [showShareModal, currentConfig]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const encodedConfig = params.get('config');
-
-    if (encodedConfig) {
-      const decoded = decodeConfigurationFromUrl(encodedConfig);
-      if (decoded) {
-        if (decoded.selections) setSelections(decoded.selections);
-        if (decoded.addOns) setSelectedAddOns(decoded.addOns);
-        if (decoded.quantity) setQuantity(decoded.quantity);
-      }
-    }
-  }, []);
+  // useEffect(() => {
+  //   const params = new URLSearchParams(window.location.search);
+  //   const encodedConfig = params.get('config');
+  //
+  //   if (encodedConfig) {
+  //     const decoded = decodeConfigurationFromUrl(encodedConfig);
+  //     if (decoded) {
+  //       if (decoded.selections) setSelections(decoded.selections);
+  //       if (decoded.addOns) setSelectedAddOns(decoded.addOns);
+  //       if (decoded.quantity) setQuantity(decoded.quantity);
+  //     }
+  //   }
+  // }, []);
 
   // -------------------------------------------------------------------------
   // Event Handlers
   // -------------------------------------------------------------------------
-
+  const handleValidation = async (
+    currentConfig: Configuration,
+    product: Product,
+  ): Promise<ValidationResult | void> => {
+    try {
+      return await validateConfiguration(currentConfig, product);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : ERROR_CODES.UNKNOWN);
+    }
+  };
   const handleOptionChange = useCallback(
     (optionId: string, value: string | number | boolean) => {
       setSelections((prev) => ({
         ...prev,
         [optionId]: value,
       }));
-
+      console.log(optionId, value);
       const option = product.options.find((o) => o.id === optionId);
       // Clean up any dependent add-ons whose requirement is no longer met.
       // Toggles are handled in handleAddOnToggle, so we only need to do this for select options.
-      if (option && option.type === 'select') {
+      console.log('option', option);
+      if (option) {
         const dependentAddOns = product.addOns.filter((a) => a.dependsOn?.optionId === optionId);
-
+        console.log('dependentAddOns', dependentAddOns);
         for (const addOn of dependentAddOns) {
           if (addOn.dependsOn && value !== addOn.dependsOn.requiredValue) {
             const index = selectedAddOns.indexOf(addOn.id);
@@ -310,6 +292,7 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
           }
         }
       }
+      setIsDirty(!isDirty);
     },
     [product.options, product.addOns, selectedAddOns],
   );
@@ -335,23 +318,24 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
     [product.addOns, selections],
   );
 
-  const handleQuantityChange = useCallback(
-    (newQuantity: number) => {
-      const quantityOption = product.options.find((o) => o.type === 'quantity');
-      const min = quantityOption?.min ?? 1;
-      const max = quantityOption?.max ?? 999;
+  const handleQuantityChange = (newQuantity: number) => {
+    const quantityOption = product.options.find((o) => o.type === 'quantity');
+    const min = quantityOption?.min ?? 1;
+    const max = quantityOption?.max ?? 999;
 
-      const clampedQuantity = Math.max(min, Math.min(max, newQuantity));
-      setQuantity(clampedQuantity);
-    },
-    [product.options],
-  );
+    const clampedQuantity = Math.max(min, Math.min(max, newQuantity));
+    setQuantity(clampedQuantity);
+    console.log('clampedQuantity', clampedQuantity);
+    if (clampedQuantity > 1) {
+      setIsDirty(true);
+    } else setIsDirty(false);
+  };
 
   const handleSaveDraft = useCallback(async () => {
     try {
       await saveDraft(currentConfig, draftName || 'Untitled Draft');
       setLastSaved(new Date());
-      setIsDirty(false);
+      setIsDirty(!isDirty);
       setDraftName('');
 
       setShowDraftModal(false);
@@ -368,7 +352,7 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
         setSelectedAddOns(draft.configuration.addOns);
         setQuantity(draft.configuration.quantity);
         setShowDraftModal(false);
-        setIsDirty(false);
+        setIsDirty(!isDirty);
       }
     } catch {
       setError(ERROR_CODES.UNKNOWN);
@@ -383,32 +367,47 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
       setError(ERROR_CODES.UNKNOWN);
     }
   }, []);
-
-  const handleAddToCart = useCallback(() => {
-    if (!validation?.valid) {
-      setError(validation?.errors[0]?.code || ERROR_CODES.UNKNOWN);
-      return;
+  const handleDiscardChanges = () => {
+    setSelections(getDefaultSelections(product));
+    setSelectedAddOns([]);
+    setQuantity(1);
+    setIsDirty(false);
+  };
+  const handleAddToCart = async () => {
+    try {
+      const result = await handleValidation(currentConfig, product);
+      if (!result) return;
+      setValidation(result);
+      if (result.valid && price && onAddToCart) {
+        onAddToCart(currentConfig, price);
+      } else if (result.errors?.length || result.warnings?.length) {
+        setError(result.errors?.[0]?.message || ERROR_CODES.UNKNOWN);
+        setIsValid(false);
+      }
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : ERROR_CODES.UNKNOWN);
+      setIsValid(false);
     }
+  };
 
+  const handleQuickAdd = () => {
+    handleDiscardChanges();
     if (price && onAddToCart) {
       onAddToCart(currentConfig, price);
     }
-  }, [validation, price, currentConfig, onAddToCart]);
+  };
 
-  const handleQuickAdd = useCallback(() => {
-    if (price && onAddToCart) {
-      onAddToCart(currentConfig, price);
-    }
-  }, [price, currentConfig, onAddToCart]);
-
-  const handleCopyShareUrl = useCallback(() => {
+  const handleCopyShareUrl = () => {
     navigator.clipboard
       .writeText(shareUrl)
       .then(() => {})
       .catch(() => {
         setError(ERROR_CODES.UNKNOWN);
       });
-  }, [shareUrl]);
+    const encoded = encodeConfigurationToUrl(currentConfig);
+    const url = `${window.location.origin}${window.location.pathname}?config=${encoded}`;
+    setShareUrl(url);
+  };
 
   const handleModalClose = useCallback((modalType: 'draft' | 'share') => {
     if (modalType === 'draft') {
@@ -430,13 +429,6 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
     },
     [handleModalClose],
   );
-
-  const handleDiscardChanges = useCallback(() => {
-    setSelections(getDefaultSelections(product));
-    setSelectedAddOns([]);
-    setQuantity(1);
-    setIsDirty(false);
-  }, [product]);
 
   // -------------------------------------------------------------------------
   // Render Helpers

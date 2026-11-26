@@ -110,7 +110,7 @@ export interface PreviewResponse {
 export interface ProductConfiguratorProps {
   product: Product;
   initialConfiguration?: Partial<Configuration>;
-  onConfigurationChange?: (config: Configuration) => void;
+  onConfigurationChange: (config: Configuration) => void;
   onAddToCart?: (config: Configuration, price: PriceBreakdown) => void;
   readOnly?: boolean;
 }
@@ -137,10 +137,10 @@ export const ERROR_CODES = {
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 
 // Event types for callbacks
-export interface ConfigChangeEvent {
-  type: 'option' | 'addon' | 'quantity';
-  optionId?: string;
-  addOnId?: string;
-  previousValue: any;
-  newValue: any;
-}
+// export interface ConfigChangeEvent {
+//   type: 'option' | 'addon' | 'quantity';
+//   optionId?: string;
+//   addOnId?: string;
+//   previousValue: any;
+//   newValue: any;
+// }
