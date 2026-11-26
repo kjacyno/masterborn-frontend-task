@@ -292,6 +292,14 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [readOnly, validation?.valid, price, onAddToCart]);
 
+  useEffect(() => {
+    if (showDraftModal || showShareModal) {
+      document.querySelector<HTMLElement>('.modal .modal-close')?.focus();
+    } else {
+      lastFocusedElement.current?.focus();
+    }
+  }, [showDraftModal, showShareModal]);
+
   // -------------------------------------------------------------------------
   // Event Handlers
   // -------------------------------------------------------------------------
@@ -427,10 +435,6 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
     } else {
       setShowShareModal(false);
     }
-
-    if (lastFocusedElement.current) {
-      lastFocusedElement.current.focus();
-    }
   }, []);
 
   const handleModalKeyDown = useCallback(
@@ -490,13 +494,15 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
           aria-label={option.name}
         >
           {option.choices?.map((choice, index) => (
-            <div
+            <button
+              type="button"
               key={index}
               className={`color-swatch ${currentValue === choice.value ? 'selected' : ''}`}
               style={{ backgroundColor: choice.colorHex }}
               onClick={() => !readOnly && handleOptionChange(option.id, choice.value)}
               title={choice.label}
               role="radio"
+              aria-label={choice.label}
               aria-checked={currentValue === choice.value}
             />
           ))}
@@ -515,6 +521,7 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
         </label>
         <div className="quantity-control">
           <button
+            type="button"
             className="quantity-btn"
             onClick={() => handleQuantityChange(quantity - 1)}
             disabled={readOnly || quantity <= (option.min ?? 1)}
@@ -533,6 +540,7 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
             disabled={readOnly}
           />
           <button
+            type="button"
             className="quantity-btn"
             onClick={() => handleQuantityChange(quantity + 1)}
             disabled={readOnly || quantity >= (option.max ?? 999)}
@@ -778,7 +786,7 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
           <div className="modal-header">
             <h3 className="modal-title">Share Configuration</h3>
             <button
-              className="modal-close"
+              className="btn modal-close"
               onClick={() => handleModalClose('share')}
               aria-label="Close modal"
             >
