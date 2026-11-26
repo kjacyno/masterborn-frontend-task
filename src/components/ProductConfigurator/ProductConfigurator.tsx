@@ -182,6 +182,18 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
     return map;
   }, [product.addOns, selections]);
 
+  const handleDiscardChanges = () => {
+    setSelections(getDefaultSelections(product));
+    setSelectedAddOns([]);
+    setQuantity(1);
+    setIsDirty(false);
+  };
+
+  const handleQuickAdd = () => {
+    void handleValidation(currentConfig, product);
+    handleDiscardChanges();
+    if (price) onAddToCart(currentConfig, price);
+  };
   // -------------------------------------------------------------------------
   // Effects
   // -------------------------------------------------------------------------
@@ -266,6 +278,19 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
   //     }
   //   }
   // }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key !== 'Enter') return;
+      if (event.repeat) return;
+
+      event.preventDefault();
+      handleQuickAdd();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [readOnly, validation?.valid, price, onAddToCart]);
 
   // -------------------------------------------------------------------------
   // Event Handlers
@@ -366,12 +391,7 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
       setError(ERROR_CODES.UNKNOWN);
     }
   }, []);
-  const handleDiscardChanges = () => {
-    setSelections(getDefaultSelections(product));
-    setSelectedAddOns([]);
-    setQuantity(1);
-    setIsDirty(false);
-  };
+
   const handleAddToCart = async () => {
     try {
       const result = await handleValidation(currentConfig, product);
@@ -387,12 +407,6 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({
       setError(error instanceof Error ? error.message : ERROR_CODES.UNKNOWN);
       setIsValid(false);
     }
-  };
-
-  const handleQuickAdd = () => {
-    void handleValidation(currentConfig, product);
-    handleDiscardChanges();
-    if (price) onAddToCart(currentConfig, price);
   };
 
   const handleCopyShareUrl = () => {
